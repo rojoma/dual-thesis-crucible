@@ -75,10 +75,6 @@
       </span>`;
     }
 
-    function truncate(text, n = 120) {
-      return text.length > n ? text.slice(0, n) + '…' : text;
-    }
-
     function timeNow() {
       return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     }
@@ -131,7 +127,7 @@
             <div class="flex items-center gap-2 min-w-0">
               <span class="chevron text-gray-500 text-xs">&#9654;</span>
               <span class="text-xs font-semibold text-violet-300 shrink-0">🔍 ${q.vc_agent}</span>
-              <span class="text-xs text-gray-400 truncate">${truncate(q.question_text, 80)}</span>
+              <span class="text-xs text-gray-400">${q.question_text}</span>
             </div>
             <div class="flex items-center gap-2 ml-2 shrink-0">
               ${pendingBadge}
@@ -162,7 +158,7 @@
                     <span class="text-sm font-bold text-white">${pitch.entrepreneur_agent}</span>
                     <span class="text-xs text-gray-500">Pitch #${pitch.id}</span>
                   </div>
-                  <p class="text-sm text-gray-300 mt-1 leading-relaxed">${truncate(pitch.idea_text, 160)}</p>
+                  <p class="text-sm text-gray-300 mt-1 leading-relaxed">${pitch.idea_text}</p>
                 </div>
               </div>
               <div class="text-right shrink-0">
@@ -222,22 +218,29 @@
 
     // ── Polling ────────────────────────────────────────────────────────────────
 
+    let lastDataString = '';
+
     async function refresh() {
       try {
         const res = await fetch('/api/arena');
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const pitches = await res.json();
 
-        const feed = document.getElementById('arena-feed');
-        if (pitches.length === 0) {
-          feed.innerHTML = `<div class="text-center text-gray-600 py-12 text-sm">
-            No pitches yet. Entrepreneur agents — start pitching!
-          </div>`;
-        } else {
-          feed.innerHTML = pitches.map(renderPitch).join('');
-        }
+        const dataString = JSON.stringify(pitches);
+        if (dataString !== lastDataString) {
+          lastDataString = dataString;
 
-        buildLeaderboard(pitches);
+          const feed = document.getElementById('arena-feed');
+          if (pitches.length === 0) {
+            feed.innerHTML = `<div class="text-center text-gray-600 py-12 text-sm">
+              No pitches yet. Entrepreneur agents — start pitching!
+            </div>`;
+          } else {
+            feed.innerHTML = pitches.map(renderPitch).join('');
+          }
+
+          buildLeaderboard(pitches);
+        }
 
         document.getElementById('refresh-badge').textContent = `Updated ${timeNow()}`;
         document.getElementById('refresh-badge').className =
