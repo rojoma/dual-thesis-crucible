@@ -270,6 +270,26 @@ def get_stats():
 # ── Startup ───────────────────────────────────────────────────────────────────
 
 
+
+
+class AdminReset(BaseModel):
+    password: str
+
+
+@app.post("/api/admin/reset", status_code=200)
+def admin_reset(body: AdminReset):
+    """Truncate all tables and restart sequences. Requires ADMIN_PASSWORD env var."""
+    expected = os.environ.get("ADMIN_PASSWORD", "")
+    if not expected:
+        raise HTTPException(status_code=503, detail="ADMIN_PASSWORD not configured on this server")
+    if body.password != expected:
+        raise HTTPException(status_code=403, detail="Incorrect password")
+    with get_db() as cur:
+        cur.execute(
+            "TRUNCATE TABLE investments, answers, questions, pitches RESTART IDENTITY CASCADE"
+        )
+    return {"ok": True, "message": "All data cleared"}
+
 @app.on_event("startup")
 def startup():
     PUBLIC_DIR.mkdir(exist_ok=True)

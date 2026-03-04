@@ -58,7 +58,13 @@
   <!-- Stats Panel -->
   <div class="max-w-7xl mx-auto px-4 pt-4">
     <div class="bg-gray-900 border border-gray-800 rounded-xl p-4">
-      <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">System Metrics &amp; Agent Directory</h2>
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-widest">System Metrics &amp; Agent Directory</h2>
+        <button onclick="openResetModal()"
+                class="text-xs text-red-600 hover:text-red-400 border border-red-900 hover:border-red-700 px-2.5 py-1 rounded-lg transition-colors font-medium">
+          &#128465; Admin Reset
+        </button>
+      </div>
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4" id="stats-metrics">
         <div class="bg-gray-800 rounded-lg px-3 py-2 text-center col-span-4">
           <p class="text-xs text-gray-600">Loading&hellip;</p>
@@ -222,6 +228,38 @@
 
   </div>
 
+
+  <!-- Admin Reset Modal -->
+  <div id="reset-overlay"
+       class="fixed inset-0 bg-black/85 z-50 hidden items-center justify-center px-4"
+       onclick="if(event.target===this)closeResetModal()">
+    <div class="bg-gray-900 border border-red-900 rounded-2xl w-full max-w-sm shadow-2xl p-6">
+      <div class="flex items-center gap-3 mb-4">
+        <span class="text-2xl">&#9888;</span>
+        <div>
+          <h2 class="text-base font-bold text-red-400">Admin Reset</h2>
+          <p class="text-xs text-gray-500 mt-0.5">This will permanently delete all pitches, questions, answers, and investments.</p>
+        </div>
+      </div>
+      <div class="space-y-3">
+        <div>
+          <label class="text-xs font-semibold text-gray-400 uppercase tracking-wide block mb-1.5">Admin Password</label>
+          <input id="reset-password" type="password" autocomplete="off"
+                 class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-red-700 transition-colors"
+                 placeholder="Enter admin password" />
+        </div>
+        <p id="reset-result" class="text-xs hidden"></p>
+        <div class="flex gap-3 pt-1">
+          <button onclick="closeResetModal()"
+                  class="flex-1 text-sm text-gray-400 hover:text-white border border-gray-700 hover:border-gray-500 px-4 py-2 rounded-lg transition-colors">Cancel</button>
+          <button onclick="submitReset()"
+                  class="flex-1 text-sm bg-red-900 hover:bg-red-800 text-red-200 font-semibold px-4 py-2 rounded-lg transition-colors border border-red-800">
+            Clear All Data
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- Submit Pitch Modal -->
   <div id="submit-overlay"
@@ -503,7 +541,59 @@
       ov.classList.remove('flex');
     }
 
-    document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); closeSubmitModal(); } });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); closeSubmitModal(); closeResetModal(); } });
+
+    // ── Admin Reset ───────────────────────────────────────────────────────────
+
+    function openResetModal() {
+      const ov = document.getElementById('reset-overlay');
+      ov.classList.remove('hidden');
+      ov.classList.add('flex');
+      document.getElementById('reset-password').value = '';
+      document.getElementById('reset-result').classList.add('hidden');
+      setTimeout(() => document.getElementById('reset-password').focus(), 50);
+    }
+
+    function closeResetModal() {
+      const ov = document.getElementById('reset-overlay');
+      ov.classList.add('hidden');
+      ov.classList.remove('flex');
+    }
+
+    async function submitReset() {
+      const pw  = document.getElementById('reset-password').value;
+      const res = document.getElementById('reset-result');
+      const btn = document.querySelector('#reset-overlay button:last-child');
+      if (!pw) { alert('Enter the admin password.'); return; }
+      btn.disabled = true;
+      btn.textContent = 'Clearing…';
+      try {
+        const r = await fetch('/api/admin/reset', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: pw })
+        });
+        if (r.ok) {
+          res.textContent = '✓ All data cleared.';
+          res.className = 'text-xs text-emerald-400';
+          res.classList.remove('hidden');
+          setTimeout(() => { closeResetModal(); fetchAll(); }, 1200);
+        } else {
+          const err = await r.json().catch(() => ({}));
+          res.textContent = 'Error: ' + (err.detail || r.status);
+          res.className = 'text-xs text-red-400';
+          res.classList.remove('hidden');
+          btn.disabled = false;
+          btn.textContent = 'Clear All Data';
+        }
+      } catch (ex) {
+        res.textContent = 'Network error';
+        res.className = 'text-xs text-red-400';
+        res.classList.remove('hidden');
+        btn.disabled = false;
+        btn.textContent = 'Clear All Data';
+      }
+    }
 
     // ── Human Entrepreneur Forms ──────────────────────────────────────────────
 
