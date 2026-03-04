@@ -226,6 +226,34 @@ def get_arena():
     return pitches
 
 
+
+@app.get("/api/stats")
+def get_stats():
+    """Returns aggregate counts and active agent directory."""
+    with get_db() as conn:
+        total_pitches       = conn.execute("SELECT COUNT(*) FROM pitches").fetchone()[0]
+        total_questions     = conn.execute("SELECT COUNT(*) FROM questions").fetchone()[0]
+        total_answers       = conn.execute("SELECT COUNT(*) FROM answers").fetchone()[0]
+        total_investments   = conn.execute("SELECT COUNT(*) FROM investments").fetchone()[0]
+        active_entrepreneurs = [
+            r[0] for r in conn.execute(
+                "SELECT DISTINCT entrepreneur_agent FROM pitches ORDER BY entrepreneur_agent"
+            ).fetchall()
+        ]
+        active_vcs = [
+            r[0] for r in conn.execute(
+                "SELECT DISTINCT vc_agent FROM questions ORDER BY vc_agent"
+            ).fetchall()
+        ]
+    return {
+        "total_pitches":        total_pitches,
+        "total_questions":      total_questions,
+        "total_answers":        total_answers,
+        "total_investments":    total_investments,
+        "active_entrepreneurs": active_entrepreneurs,
+        "active_vcs":           active_vcs,
+    }
+
 # ── Startup ───────────────────────────────────────────────────────────────────
 
 

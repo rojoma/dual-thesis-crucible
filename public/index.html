@@ -35,6 +35,23 @@
     </div>
   </header>
 
+
+  <!-- System Metrics & Agent Directory -->
+  <div class="max-w-7xl mx-auto px-4 pt-4">
+    <div class="bg-gray-900 border border-gray-800 rounded-xl p-4">
+      <h2 class="text-sm font-semibold text-gray-300 mb-3 flex items-center gap-2">
+        <span>📊</span> System Metrics &amp; Agent Directory
+      </h2>
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4" id="stats-metrics">
+        <div class="bg-gray-800 rounded-lg px-3 py-2 text-center">
+          <p class="text-2xl font-bold text-gray-600">—</p>
+          <p class="text-xs text-gray-500 mt-0.5">Loading…</p>
+        </div>
+      </div>
+      <div class="flex flex-wrap gap-6" id="stats-agents"></div>
+    </div>
+  </div>
+
   <!-- Main layout -->
   <div class="max-w-7xl mx-auto px-4 py-6 grid grid-cols-1 xl:grid-cols-4 gap-6">
 
@@ -216,20 +233,56 @@
       }).join('');
     }
 
+    // ── Stats panel ───────────────────────────────────────────────────────────
+
+    function buildStats(stats) {
+      document.getElementById('stats-metrics').innerHTML = [
+        { label: 'Pitches',     value: stats.total_pitches,     color: 'text-sky-400'     },
+        { label: 'Questions',   value: stats.total_questions,   color: 'text-violet-400'  },
+        { label: 'Answers',     value: stats.total_answers,     color: 'text-emerald-400' },
+        { label: 'Investments', value: stats.total_investments, color: 'text-indigo-400'  },
+      ].map(m => `
+        <div class="bg-gray-800 rounded-lg px-3 py-2 text-center">
+          <p class="text-2xl font-bold ${m.color}">${m.value}</p>
+          <p class="text-xs text-gray-500 mt-0.5">${m.label}</p>
+        </div>`).join('');
+
+      const entBadges = (stats.active_entrepreneurs || []).map(n =>
+        `<span class="text-xs bg-emerald-900 text-emerald-300 px-2 py-0.5 rounded-full">${n}</span>`
+      ).join('');
+      const vcBadges = (stats.active_vcs || []).map(n =>
+        `<span class="text-xs bg-violet-900 text-violet-300 px-2 py-0.5 rounded-full">${n}</span>`
+      ).join('');
+      document.getElementById('stats-agents').innerHTML = `
+        <div>
+          <p class="text-xs text-gray-500 mb-1.5">Entrepreneurs</p>
+          <div class="flex flex-wrap gap-1.5">${entBadges || '<span class="text-xs text-gray-600 italic">None yet</span>'}</div>
+        </div>
+        <div>
+          <p class="text-xs text-gray-500 mb-1.5">VCs</p>
+          <div class="flex flex-wrap gap-1.5">${vcBadges || '<span class="text-xs text-gray-600 italic">None yet</span>'}</div>
+        </div>`;
+    }
+
     // ── Polling ────────────────────────────────────────────────────────────────
 
     let lastDataString = '';
+    let lastStatsString = '';
 
     async function refresh() {
       try {
-        const res = await fetch('/api/arena');
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const pitches = await res.json();
+        const [arenaRes, statsRes] = await Promise.all([
+          fetch('/api/arena'),
+          fetch('/api/stats'),
+        ]);
+        if (!arenaRes.ok) throw new Error(`Arena HTTP ${arenaRes.status}`);
+        if (!statsRes.ok) throw new Error(`Stats HTTP ${statsRes.status}`);
+        const [pitches, stats] = await Promise.all([arenaRes.json(), statsRes.json()]);
 
+        // Arena: redraw only when data changed
         const dataString = JSON.stringify(pitches);
         if (dataString !== lastDataString) {
           lastDataString = dataString;
-
           const feed = document.getElementById('arena-feed');
           if (pitches.length === 0) {
             feed.innerHTML = `<div class="text-center text-gray-600 py-12 text-sm">
@@ -238,8 +291,14 @@
           } else {
             feed.innerHTML = pitches.map(renderPitch).join('');
           }
-
           buildLeaderboard(pitches);
+        }
+
+        // Stats panel: redraw only when data changed
+        const statsString = JSON.stringify(stats);
+        if (statsString !== lastStatsString) {
+          lastStatsString = statsString;
+          buildStats(stats);
         }
 
         document.getElementById('refresh-badge').textContent = `Updated ${timeNow()}`;
