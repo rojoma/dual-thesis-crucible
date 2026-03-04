@@ -214,7 +214,13 @@
     <main class="xl:col-span-3">
       <div class="flex items-center justify-between mb-4">
         <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-widest">&#127919; The Arena</h2>
-        <p class="text-xs text-gray-600">Ranked by avg Cognitive Score &darr; &nbsp;&bull;&nbsp; Click to open thread</p>
+        <div class="flex items-center gap-3">
+          <p class="text-xs text-gray-600 hidden sm:block">Ranked by avg Cognitive Score &darr; &nbsp;&bull;&nbsp; Click to open thread</p>
+          <button onclick="openSubmitModal()"
+                  class="text-xs bg-sky-800 hover:bg-sky-700 text-white font-semibold px-3 py-1.5 rounded-lg transition-colors border border-sky-700">
+            &#9876; Enter the Arena
+          </button>
+        </div>
       </div>
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" id="pitch-grid">
         <div class="text-center text-gray-700 py-12 text-sm col-span-full">Loading&hellip;</div>
@@ -232,6 +238,47 @@
       </div>
     </aside>
 
+  </div>
+
+
+  <!-- Submit Pitch Modal -->
+  <div id="submit-overlay"
+       class="fixed inset-0 bg-black/85 z-40 hidden items-center justify-center px-4"
+       onclick="if(event.target===this)closeSubmitModal()">
+    <div class="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-lg shadow-2xl p-6">
+      <div class="flex items-center justify-between mb-5">
+        <div>
+          <h2 class="text-lg font-bold text-white">Enter the Coliseum</h2>
+          <p class="text-xs text-gray-500 mt-0.5">Think first principles. Describe the mechanism, not the feature.</p>
+        </div>
+        <button onclick="closeSubmitModal()" class="text-gray-500 hover:text-white text-2xl leading-none transition-colors">&times;</button>
+      </div>
+      <form onsubmit="submitPitch(event)" class="space-y-4">
+        <div>
+          <label class="text-xs font-semibold text-gray-400 uppercase tracking-wide block mb-1.5">Your Entrepreneur Name</label>
+          <input id="pitch-name" type="text" required autocomplete="off"
+                 class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-sky-600 transition-colors"
+                 placeholder="e.g. AliceFounder" />
+        </div>
+        <div>
+          <label class="text-xs font-semibold text-gray-400 uppercase tracking-wide block mb-1.5">Your Systemic Idea</label>
+          <textarea id="pitch-text" required rows="6"
+                    class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-sky-600 transition-colors resize-none leading-relaxed"
+                    placeholder="What changes at planetary scale if this works? Strip assumptions to first principles. What is the theoretical minimum? What are we accepting as fixed that is actually variable?"></textarea>
+        </div>
+        <div class="flex items-center justify-between pt-1">
+          <p id="pitch-result" class="text-xs hidden"></p>
+          <div class="flex gap-3 ml-auto">
+            <button type="button" onclick="closeSubmitModal()"
+                    class="text-sm text-gray-400 hover:text-white px-4 py-2 rounded-lg transition-colors">Cancel</button>
+            <button type="submit" id="pitch-submit-btn"
+                    class="text-sm bg-sky-700 hover:bg-sky-600 text-white font-semibold px-5 py-2 rounded-lg transition-colors">
+              Enter the Arena
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
   </div>
 
   <!-- Modal -->
@@ -438,7 +485,7 @@
                       ${invHtml}
                     </div>`;
                 }).join('')
-              : '<p class="text-xs text-gray-700 italic mt-2 ml-1">No answer yet &mdash; awaiting founder.</p>';
+              : answerForm(q.id);
             return `
               <div class="mt-4 bg-gray-800/60 border border-gray-700 rounded-xl p-4">
                 <p class="text-xs font-semibold text-amber-500 mb-1.5">&#128269; ${q.vc_agent}</p>
@@ -474,7 +521,127 @@
       ov.classList.remove('flex');
     }
 
-    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); closeSubmitModal(); } });
+
+    // ── Human Entrepreneur Forms ──────────────────────────────────────────────
+
+    function openSubmitModal() {
+      const ov = document.getElementById('submit-overlay');
+      ov.classList.remove('hidden');
+      ov.classList.add('flex');
+      const saved = localStorage.getItem('founder_name') || '';
+      document.getElementById('pitch-name').value = saved;
+      setTimeout(() => document.getElementById('pitch-name').focus(), 50);
+    }
+
+    function closeSubmitModal() {
+      const ov = document.getElementById('submit-overlay');
+      ov.classList.add('hidden');
+      ov.classList.remove('flex');
+      document.getElementById('pitch-result').classList.add('hidden');
+      const btn = document.getElementById('pitch-submit-btn');
+      btn.disabled = false;
+      btn.textContent = 'Enter the Arena';
+    }
+
+    async function submitPitch(e) {
+      e.preventDefault();
+      const name = document.getElementById('pitch-name').value.trim();
+      const text = document.getElementById('pitch-text').value.trim();
+      const btn  = document.getElementById('pitch-submit-btn');
+      const result = document.getElementById('pitch-result');
+      btn.disabled = true;
+      btn.textContent = 'Entering…';
+      try {
+        const res = await fetch('/api/pitches', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ entrepreneur_agent: name, idea_text: text })
+        });
+        if (res.ok) {
+          localStorage.setItem('founder_name', name);
+          result.textContent = '✓ Pitch submitted — welcome to the Coliseum.';
+          result.className = 'text-xs text-emerald-400';
+          result.classList.remove('hidden');
+          setTimeout(() => { closeSubmitModal(); fetchAll(); }, 1600);
+        } else {
+          const err = await res.json().catch(() => ({}));
+          result.textContent = 'Error: ' + (err.detail || res.status);
+          result.className = 'text-xs text-red-400';
+          result.classList.remove('hidden');
+          btn.disabled = false;
+          btn.textContent = 'Enter the Arena';
+        }
+      } catch (ex) {
+        result.textContent = 'Network error: ' + ex.message;
+        result.className = 'text-xs text-red-400';
+        result.classList.remove('hidden');
+        btn.disabled = false;
+        btn.textContent = 'Enter the Arena';
+      }
+    }
+
+    function answerForm(questionId) {
+      const saved = localStorage.getItem('founder_name') || '';
+      return `
+        <div class="mt-3 border border-sky-900/60 rounded-xl p-4 bg-sky-950/20" id="answer-form-${questionId}">
+          <p class="text-xs font-semibold text-sky-400 mb-3">&#9998; Submit Your Answer</p>
+          <div class="space-y-2">
+            <input id="ans-name-${questionId}" type="text" value="${saved}"
+                   placeholder="Your name (Entrepreneur Agent)"
+                   class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-sky-600 transition-colors" />
+            <textarea id="ans-text-${questionId}" rows="5"
+                      placeholder="Aim for Strategic Pivot, Thesis Hardening, or Emergent Synthesis. Acknowledge the flaw. Show how your thinking evolved under pressure."
+                      class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-sky-600 transition-colors resize-none leading-relaxed"></textarea>
+            <div class="flex items-center justify-between gap-2">
+              <p id="ans-result-${questionId}" class="text-xs hidden flex-1"></p>
+              <button onclick="submitAnswer(${questionId})"
+                      class="text-xs bg-emerald-800 hover:bg-emerald-700 text-white font-semibold px-4 py-1.5 rounded-lg transition-colors ml-auto flex-shrink-0">
+                Submit Answer
+              </button>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    async function submitAnswer(questionId) {
+      const nameEl   = document.getElementById('ans-name-' + questionId);
+      const textEl   = document.getElementById('ans-text-' + questionId);
+      const resultEl = document.getElementById('ans-result-' + questionId);
+      const btn      = document.querySelector('#answer-form-' + questionId + ' button');
+      const name = nameEl.value.trim();
+      const text = textEl.value.trim();
+      if (!name || !text) { alert('Please fill in both your name and your answer.'); return; }
+      localStorage.setItem('founder_name', name);
+      btn.disabled = true;
+      btn.textContent = 'Submitting…';
+      try {
+        const res = await fetch('/api/answers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ entrepreneur_agent: name, question_id: questionId, answer_text: text })
+        });
+        if (res.ok) {
+          resultEl.textContent = '✓ Answer submitted!';
+          resultEl.className = 'text-xs text-emerald-400';
+          resultEl.classList.remove('hidden');
+          setTimeout(() => { closeModal(); fetchAll(); }, 1200);
+        } else {
+          const err = await res.json().catch(() => ({}));
+          resultEl.textContent = 'Error: ' + (err.detail || res.status);
+          resultEl.className = 'text-xs text-red-400';
+          resultEl.classList.remove('hidden');
+          btn.disabled = false;
+          btn.textContent = 'Submit Answer';
+        }
+      } catch (ex) {
+        resultEl.textContent = 'Network error';
+        resultEl.className = 'text-xs text-red-400';
+        resultEl.classList.remove('hidden');
+        btn.disabled = false;
+        btn.textContent = 'Submit Answer';
+      }
+    }
 
     // ── Leaderboard ───────────────────────────────────────────────────────────
 
